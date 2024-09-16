@@ -65,8 +65,24 @@ func NewReplacerMedia(resources map[string]markdown.Resource) *Media {
 	return &Media{resources: resources}
 }
 
+// 去除底部一串乱码
+func removeHiddenCenter(n *html.Node) {
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		if c.Type == html.ElementNode && c.Data == "center" {
+			style := styleAttr(c)
+			if strings.Contains(style, "display:none") {
+				n.RemoveChild(c)
+				return
+			}
+		} else {
+			removeHiddenCenter(c)
+		}
+	}
+}
+
 // ReplaceTag implements the TagReplacer interface
 func (r *Media) ReplaceTag(n *html.Node) {
+	removeHiddenCenter(n)
 	if isMedia(n) {
 		if res, ok := r.resources[hashAttr(n)]; ok {
 			replaceNode(n, res)
@@ -84,6 +100,16 @@ func isMedia(n *html.Node) bool {
 func hashAttr(n *html.Node) string {
 	for _, a := range n.Attr {
 		if a.Key == "hash" {
+			return a.Val
+		}
+	}
+
+	return ""
+}
+
+func styleAttr(n *html.Node) string {
+	for _, a := range n.Attr {
+		if a.Key == "style" {
 			return a.Val
 		}
 	}
