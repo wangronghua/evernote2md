@@ -110,7 +110,7 @@ func run(files []string, input string, output string, folders bool, resetTimesta
 				}
 				break
 			}
-			md, innerErr := c.Convert(&note)
+			md, innerErr := c.Convert(&note, cnt)
 			if progressError(innerErr, note.Title, "Failed to convert note") {
 				continue
 			}

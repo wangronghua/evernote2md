@@ -2,6 +2,7 @@ package internal
 
 import (
 	"bytes"
+	"crypto/md5"
 	"errors"
 	"fmt"
 	"io"
@@ -78,11 +79,11 @@ func NewConverter(tagTemplate string, enableFrontMatter, enableHighlights, escap
 }
 
 // Convert an Evernote file to markdown
-func (c *Converter) Convert(note *enex.Note) (*markdown.Note, error) {
+func (c *Converter) Convert(note *enex.Note, cnt int) (*markdown.Note, error) {
 	md := new(markdown.Note)
 	md.Media = map[string]markdown.Resource{}
 
-	c.mapResources(note, md)
+	c.mapResources(note, md, cnt)
 	c.normalizeHTML(note, md, NewReplacerMedia(md.Media), &Code{}, &ExtraDiv{}, &TextFormatter{}, &EmptyAnchor{}, &NormalizeTodo{})
 	c.toMarkdown(note, md)
 	c.prependTags(note, md)
@@ -96,7 +97,7 @@ func (c *Converter) Convert(note *enex.Note) (*markdown.Note, error) {
 	return md, c.err
 }
 
-func (c *Converter) mapResources(note *enex.Note, md *markdown.Note) {
+func (c *Converter) mapResources(note *enex.Note, md *markdown.Note, cntp int) {
 	names := map[string]int{}
 	r := note.Resources
 	for i := range r {
@@ -120,16 +121,18 @@ func (c *Converter) mapResources(note *enex.Note, md *markdown.Note) {
 		}
 
 		mdr := markdown.Resource{
-			Name:    name + ext,
+			Name:    strconv.Itoa(cntp) + "_" + strconv.Itoa(i) + ext,
 			Type:    rType,
 			Content: p,
 		}
 
-		if r[i].ID != "" {
-			md.Media[r[i].ID] = mdr
-		} else {
-			md.Media[strconv.Itoa(i)] = mdr
-		}
+		md.Media[fmt.Sprintf("%x", md5.Sum(p))] = mdr
+
+		// if r[i].ID != "" {
+		// 	md.Media[r[i].ID] = mdr
+		// } else {
+		// 	md.Media[strconv.Itoa(i)] = mdr
+		// }
 	}
 }
 
