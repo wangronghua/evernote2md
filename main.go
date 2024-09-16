@@ -104,7 +104,7 @@ func run(files []string, input string, output string, folders bool, resetTimesta
 
 		for {
 			note := enex.Note{}
-			if err := d.Next(&note, cnt); err != nil {
+			if err := d.Next(&note); err != nil {
 				if err != io.EOF {
 					log.Printf("Failed to decode the next note: %s", err)
 				}
