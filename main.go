@@ -42,7 +42,7 @@ func main() {
 	var tagTemplate = internal.DefaultTagTemplate
 	var folders, noHighlights, escapeSpecialChars, resetTimestamps, addFrontMatter, debug bool
 
-	flaggy.AddPositionalValue(&input, "input", 1, true, "Evernote export file, directory or a glob pattern")
+	flaggy.AddPositionalValue(&input, "input", 1, false, "Evernote export file, directory or a glob pattern")
 	flaggy.AddPositionalValue(&outputDir, "output", 2, false, "Output directory")
 
 	flaggy.String(&tagTemplate, "t", "tagTemplate", "Define how Evernote tags are formatted")
@@ -57,18 +57,20 @@ func main() {
 
 	flaggy.Parse()
 
+	input = "D:\\yingxiang"
+	outputDir = "D:\\yingxiangout"
+
 	if len(outputOverride) > 0 {
 		outputDir = outputOverride
 	}
 
 	files, err := matchInput(input)
 	failWhen(err)
-	output := newNoteFilesDir(outputDir, folders, !resetTimestamps)
 	converter, err := internal.NewConverter(tagTemplate, addFrontMatter, !noHighlights, escapeSpecialChars)
 	failWhen(err)
 
 	setLogLevel(debug)
-	run(files, output, newSpinner(debug), converter)
+	run(files, input, outputDir, folders, resetTimestamps, newSpinner(debug), converter)
 }
 
 func newSpinner(disabled bool) *spinner.Spinner {
@@ -79,11 +81,7 @@ func newSpinner(disabled bool) *spinner.Spinner {
 	return sp
 }
 
-func run(files []string, output *noteFilesDir, sp *spinner.Spinner, c *internal.Converter) {
-	log.Printf("[DEBUG] Creating a directory: %s", output.Path())
-	err := os.MkdirAll(output.Path(), os.ModePerm)
-	failWhen(err)
-
+func run(files []string, input string, output string, folders bool, resetTimestamps bool, sp *spinner.Spinner, c *internal.Converter) {
 	cnt := 0
 	start := time.Now()
 	sp.Start()
@@ -91,6 +89,12 @@ func run(files []string, output *noteFilesDir, sp *spinner.Spinner, c *internal.
 	for _, file := range files {
 		fd, err := os.Open(file)
 		failWhen(err)
+
+		destfolder := filepath.Join(output, file[len(input):len(file)-5])
+		log.Printf("[DEBUG] Creating a directory: %s", destfolder)
+		err = os.MkdirAll(destfolder, os.ModePerm)
+		failWhen(err)
+		outputFolder := newNoteFilesDir(destfolder, folders, !resetTimestamps)
 
 		log.Printf("[DEBUG] Decoding file: %s", file)
 		d, err := enex.NewStreamDecoder(fd)
@@ -100,7 +104,7 @@ func run(files []string, output *noteFilesDir, sp *spinner.Spinner, c *internal.
 
 		for {
 			note := enex.Note{}
-			if err := d.Next(&note); err != nil {
+			if err := d.Next(&note, cnt); err != nil {
 				if err != io.EOF {
 					log.Printf("Failed to decode the next note: %s", err)
 				}
@@ -110,7 +114,7 @@ func run(files []string, output *noteFilesDir, sp *spinner.Spinner, c *internal.
 			if progressError(innerErr, note.Title, "Failed to convert note") {
 				continue
 			}
-			innerErr = output.SaveNote(note.Title, md)
+			innerErr = outputFolder.SaveNote(note.Title, md)
 			if progressError(innerErr, note.Title, "Failed to save note") {
 				continue
 			}
@@ -150,7 +154,7 @@ func matchInput(input string) ([]string, error) {
 
 	// If input is a directory, find all *.enex files and return
 	if info, err := os.Stat(input); err == nil && info.IsDir() {
-		files, err := filepath.Glob(filepath.FromSlash(input + "/*.enex"))
+		files, err := getAllFiles(input, ".enex") //filepath.Glob(filepath.FromSlash(input + "/*.enex"))
 		if files != nil {
 			return files, err
 		}
@@ -168,6 +172,23 @@ func matchInput(input string) ([]string, error) {
 	}
 
 	return files, err
+}
+
+// D:\yingxiang     .enex
+func getAllFiles(dir string, prefix string) ([]string, error) {
+	var result []string
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		// 检查文件扩展名是否为 .enex
+		if !info.IsDir() && filepath.Ext(path) == prefix {
+			result = append(result, path)
+		}
+		return nil
+	})
+
+	return result, err
 }
 
 func setLogLevel(debug bool) {

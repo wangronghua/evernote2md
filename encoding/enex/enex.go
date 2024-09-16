@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -95,7 +96,7 @@ func Decode(data io.Reader) (*Export, error) {
 			}
 		}
 
-		err = decodeRecognition(&e.Notes[i])
+		err = decodeRecognition(&e.Notes[i], 1)
 		if err != nil {
 			return nil, err
 		}
@@ -151,7 +152,7 @@ func NewStreamDecoder(r io.Reader) (*StreamDecoder, error) {
 	return &StreamDecoder{xml: d}, nil
 }
 
-func (d StreamDecoder) Next(n *Note) error {
+func (d StreamDecoder) Next(n *Note, cnt int) error {
 	for {
 		token, err := d.xml.Token()
 		if err != nil {
@@ -172,7 +173,7 @@ func (d StreamDecoder) Next(n *Note) error {
 				return err
 			}
 
-			return decodeRecognition(n)
+			return decodeRecognition(n, cnt)
 		}
 	}
 }
@@ -188,13 +189,13 @@ func decodeContent(n *Note) error {
 	return nil
 }
 
-func decodeRecognition(n *Note) error {
+func decodeRecognition(n *Note, cnt int) error {
+	localid := 0
 	for j := range n.Resources {
+		localid = localid + 1
+		resourceid := strconv.Itoa(cnt) + "_" + strconv.Itoa(localid)
 		if res := n.Resources[j]; len(res.Recognition) == 0 {
-			hash := hashRe.FindString(res.Attributes.SourceUrl)
-			if len(hash) > 0 {
-				n.Resources[j].ID = hash
-			}
+			n.Resources[j].ID = resourceid
 			continue
 		}
 		var rec Recognition
@@ -203,7 +204,7 @@ func decodeRecognition(n *Note) error {
 		if err != nil {
 			return fmt.Errorf("decoding resource %s: %w", n.Resources[j].Attributes.Filename, err)
 		}
-		n.Resources[j].ID = rec.ObjID
+		n.Resources[j].ID = resourceid
 		n.Resources[j].Type = rec.ObjType
 	}
 
